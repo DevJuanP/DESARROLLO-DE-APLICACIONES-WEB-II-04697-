@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.cibertec.mspedidos.MsPedidosApplicationTests" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-05-30T02:05:00" hostname="Mac" time="1.593">
+  <properties/>
+  <testcase name="contextLoads()" classname="com.cibertec.mspedidos.MsPedidosApplicationTests" time="1.593"/>
+  <system-out><![CDATA[21:04:54.924 [Test worker] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.cibertec.mspedidos.MsPedidosApplicationTests]: MsPedidosApplicationTests does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+21:04:54.970 [Test worker] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.cibertec.mspedidos.MsPedidosApplication for test class com.cibertec.mspedidos.MsPedidosApplicationTests
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.5)
+
+2026-05-29T21:04:55.177-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] c.c.mspedidos.MsPedidosApplicationTests  : Starting MsPedidosApplicationTests using Java 17.0.13 with PID 47203 (started by ronaldcastillo in /Users/ronaldcastillo/Files/Dev/Cibertec/DESARROLLO-DE-APLICACIONES-WEB-II/practica-examen/ms-pedidos)
+2026-05-29T21:04:55.178-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] c.c.mspedidos.MsPedidosApplicationTests  : No active profile set, falling back to 1 default profile: "default"
+2026-05-29T21:04:55.480-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-05-29T21:04:55.503-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 19 ms. Found 1 JPA repository interface.
+2026-05-29T21:04:55.599-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] o.s.cloud.context.scope.GenericScope     : BeanFactory id=0a2dd1ff-265f-396a-8672-b1ee4729bc19
+2026-05-29T21:04:55.745-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-05-29T21:04:55.778-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.4.4.Final
+2026-05-29T21:04:55.799-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-05-29T21:04:55.940-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-05-29T21:04:55.955-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-05-29T21:04:56.042-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@e36bc01
+2026-05-29T21:04:56.043-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-05-29T21:04:56.435-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-05-29T21:04:56.465-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] j.LocalContainerEntityManagerFactoryBean : Initialized JPA EntityManagerFactory for persistence unit 'default'
+2026-05-29T21:04:56.636-05:00  WARN 47203 --- [ms-pedidos] [    Test worker] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning
+2026-05-29T21:05:00.000-05:00  INFO 47203 --- [ms-pedidos] [    Test worker] c.c.mspedidos.MsPedidosApplicationTests  : Started MsPedidosApplicationTests in 4.955 seconds (process running for 5.456)
+Hibernate: select count(*) from sales s1_0
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: ms-pedidos
+  datasource:
+    url: jdbc:mysql://localhost:5510/appdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=America/Lima
+    username: app
+    password: password
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+
+server:
+  port: 8082
+
+notificaciones:
+  base-url: http://localhost:8081
+  mensaje-confirmacion-id: 2
+
+messaging:
+  kafka:
+    enabled: true
+  rabbitmq:
+    enabled: true
+    stock:
+      enabled: false
