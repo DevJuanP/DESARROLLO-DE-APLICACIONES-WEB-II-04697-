@@ -48,6 +48,9 @@ Documentación de análisis base en `.planning/codebase/` (`ARCHITECTURE.md`, `S
 - `products-services (:8081)`: CRUD `/products`, `decreaseStock` sincronizado. Consume Kafka `stock-movements` (3 consumer-groups) y Rabbit `stock-exchange`, emite alertas `stock.low`.
 - `sales-services (:8082)`: CRUD `/sales`, `GET /sales/{id}/details` (enriquece con producto vía Feign a `:8081`), `POST /sales/rabbit-reserve`. Publica `stock-movements` (Kafka) y `stock.reserve` (Rabbit).
 - `jwt-sales-services (:8083)`: `POST /users` + `POST /auth/login` públicos, resto autenticado con JWT (`JwtService` + `JwtAuthenticationFilter` + `SecurityConfig`). `GET /sales` protegido. Sin Kafka/Rabbit ni llamadas salientes.
+- **Docker:** sí necesita infra → `database/docker-compose.yml` (MySQL 5510) + `queue/docker-compose-kafka.yml` (9092) + `queue/docker-compose-rabbitmq.yml` (5672). Sin `Dockerfile` para estos micros: se corren con `./gradlew bootRun`.
+- **Postman:** `postman/Cibertec-JWT-Sales...` + env `Cibertec-JWT-Local` (auth `:8083`) y `postman/Cibertec-Microservices-Flows...` + env `Cibertec-Local` (flujos Kafka/Rabbit/Feign + CRUD `:8081/:8082`).
+- **Protocolos:** Postman todo **HTTP/REST**. Entre servicios: HTTP (controllers + Feign `sales→products`), Kafka **TCP binario** (`stock-movements`, `:9092`), Rabbit **AMQP sobre TCP** (`stock-exchange`, keys `stock.reserve`/`stock.low`, `:5672`; consola `:15672` sí es HTTP), MySQL **TCP** (`:5510→3306`). Nada UDP.
 
 ### Familia B — `spring_cloud/*` (8761 / 8762 / 8300 / 8100 / 8083)
 
@@ -58,20 +61,32 @@ ms-recargas (:8100) → RestTemplate @LoadBalanced → http://ms-cuentas/cuentas
 ```
 
 Sin MySQL/Kafka/Rabbit. Datos hardcodeados (cuentas 001/002/003). `ms-notificaciones` aquí es solo un stub `GET /notificaciones/enviar/{tipo}`.
+- **Docker:** no necesita Docker. No hay compose ni `Dockerfile` útil (el `eureka-server/DockerFile` está obsoleto, `FROM java:8`). Todo con `./mvnw spring-boot:run`.
+- **Postman:** `spring_cloud/postman/sistema-fintech-tarjetas-prepago...` (dashboard Eureka, saldos/recargas directas y vía gateway).
+- **Protocolos:** todo **HTTP**. Cliente→gateway `:8762`, gateway→`lb://` (resuelto por Eureka `:8761`, también HTTP), `recargas→cuentas` vía `RestTemplate @LoadBalanced`. Sin Kafka/Rabbit/DB, nada UDP.
 
 ### Familia C — `practica-examen/*` (8082 / 8081)
 
 - `ms-pedidos (:8082)`: CRUD `/sales` + doble Feign (`ProductClient` + `NotificationClient` → `:8081`), publica Kafka `stock-movements` y `sale-cancellation-requests`, y Rabbit `purchase-email-queue` (stock solo si `messaging.rabbitmq.stock.enabled=true`, por defecto `false`).
 - `ms-notificaciones (:8081)`: CRUD `/notificaciones...` + `/mensajes` + `/ventas/{saleId}/anulaciones/logs`. Consume cancelaciones Kafka, correos Rabbit y eventos stock.
+- **Docker:** misma infra que familia A → MySQL + Kafka + Rabbit (ver §6). **Apagar familia A antes** (colisionan 8081/8082). Sin `Dockerfile`: con `./gradlew bootRun`.
+- **Postman:** `practica-examen/ms-pedidos/postman/ms-pedidos...` (ventas + Feign + anulación Kafka + `rabbit-reserve`) y `practica-examen/ms-notificaciones/postman/ms-notificaciones...` (mensajes + logs de anulación).
+- **Protocolos:** Postman todo **HTTP/REST**. Entre servicios: HTTP (doble Feign), Kafka **TCP binario** (2 topics: `stock-movements`, `sale-cancellation-requests`, `:9092`), Rabbit **AMQP sobre TCP** (`purchase-email-queue`, `stock-*`, `:5672`), MySQL **TCP** (`:5510`). Nada UDP.
 
 ### Familia D — `resiliencia-demo/*` (8090 / 8091)
 
 - `ms-pedidos (:8090)`: `POST /pedidos/sin-resiliencia` (Feign directo, 500 si falla) vs `POST /pedidos/con-resiliencia` (`@CircuitBreaker(name="inventario", fallbackMethod=...)` → `RECIBIDO_SIN_VALIDAR_STOCK`).
 - `ms-inventario (:8091)`: `GET /inventario/{productoId}` + simuladores `POST /inventario/demo/falla/{true|false}`, `POST /inventario/demo/demora/{millis}`, `GET /inventario/demo/estado`. Único con `Dockerfile` + `k8s/` + `deploy.sh` + Actuator.
+- **Docker:** en local no necesita Docker (sin DB ni colas). Los `Dockerfile` + `k8s/` + `deploy.sh` son solo para la demo K8s/minikube. **Apagar Kafka-UI antes** (colisiona en 8090).
+- **Postman:** `resiliencia-demo/postman/resiliencia-ms-pedidos-inventario...` (estado, v1 sin resiliencia con 500, v2 con fallback + apertura del CB, timeout con demora 2000, endpoints actuator).
+- **Protocolos:** todo **HTTP**. Feign `pedidos→inventario` + Actuator (`/actuator/circuitbreakers`, `/circuitbreakerevents`). Sin Eureka/Rabbit/Kafka/DB, nada UDP.
 
 ### Frontend — `frontend/hospital_web` (Cliniva)
 
 Angular 21 + Material, lazy por rol (`admin/doctor/patient`), `AuthGuard` por `localStorage`, `apiUrl: http://localhost:4200` (loopback). **No consume ningún backend Java** (`LoginService` hace `GET /user` simulado).
+- **Docker:** no usa. Se corre con `npm install && npm start`.
+- **Postman:** no tiene colección (no hay backend real que probar).
+- **Protocolos:** solo **HTTP** mock local. Nada UDP.
 
 ---
 
