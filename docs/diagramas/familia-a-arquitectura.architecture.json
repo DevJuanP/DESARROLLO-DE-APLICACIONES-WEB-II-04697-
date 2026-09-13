@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Familia A — backend: productos, ventas y auth JWT",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/DevJuanP/DESARROLLO-DE-APLICACIONES-WEB-II-04697-",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "6811f5adfc6c6fde7af8841a4537084fad9e2c55"
+    },
+    "views": [
+      { "id": "ruta-venta", "label": "Ruta de venta", "focus": ["postman", "sales", "products", "mysql"], "note": "Crear y consultar una venta: REST, enriquecimiento vía Feign y persistencia compartida." },
+      { "id": "auth-jwt", "label": "Auth JWT", "focus": ["postman", "jwtsales", "mysql"], "note": "Login público, token firmado y acceso protegido a /sales en :8083." },
+      { "id": "mensajeria", "label": "Mensajería async", "focus": ["sales", "products", "kafka", "rabbitmq"], "note": "Eventos de stock por Kafka y reservas/alertas por RabbitMQ." }
+    ]
+  },
+  "components": [
+    {
+      "id": "postman",
+      "type": "external",
+      "label": "Postman / curl",
+      "sublabel": "colecciones + environments",
+      "tag": "HTTP REST",
+      "pos": [40, 235],
+      "size": [150, 68],
+      "sources": [
+        { "path": "postman/Cibertec-JWT-Sales.postman_collection.json", "label": "colección JWT" },
+        { "path": "postman/Cibertec-Microservices-Flows.postman_collection.json", "label": "colección flujos" }
+      ]
+    },
+    {
+      "id": "sales",
+      "type": "backend",
+      "label": "sales-services",
+      "sublabel": ":8082 · /sales",
+      "pos": [330, 110],
+      "size": [180, 72],
+      "sources": [
+        { "path": "backend/sales-services/src/main/resources/application.yml", "line": 24, "label": "port 8082" },
+        { "path": "backend/sales-services/src/main/java/com/cibertec/salesservices/rest/SaleController.java", "line": 42, "label": "details con Feign" },
+        { "path": "backend/sales-services/src/main/java/com/cibertec/salesservices/kafka/KafkaTopicConfig.java", "line": 13, "label": "topic constant" }
+      ]
+    },
+    {
+      "id": "products",
+      "type": "backend",
+      "label": "products-services",
+      "sublabel": ":8081 · /products",
+      "pos": [330, 235],
+      "size": [180, 72],
+      "sources": [
+        { "path": "backend/products-services/src/main/resources/application.yml", "line": 29, "label": "port 8081" },
+        { "path": "backend/products-services/src/main/java/com/cibertec/productsservices/rest/ProductController.java", "line": 26, "label": "GET /products" },
+        { "path": "backend/products-services/src/main/java/com/cibertec/productsservices/kafka/StockUpdateConsumer.java", "line": 24, "label": "consumer group" }
+      ]
+    },
+    {
+      "id": "jwtsales",
+      "type": "backend",
+      "label": "jwt-sales-services",
+      "sublabel": ":8083 · JWT",
+      "tag": "sin mensajería",
+      "pos": [330, 360],
+      "size": [180, 72],
+      "sources": [
+        { "path": "backend/jwt-sales-services/src/main/resources/application.yml", "line": 14, "label": "port 8083" },
+        { "path": "backend/jwt-sales-services/src/main/java/com/cibertec/jwtsalesservices/security/SecurityConfig.java", "line": 32, "label": "rutas públicas" },
+        { "path": "backend/jwt-sales-services/src/main/java/com/cibertec/jwtsalesservices/rest/AuthController.java", "line": 21, "label": "POST /auth/login" }
+      ]
+    },
+    {
+      "id": "kafka",
+      "type": "messagebus",
+      "label": "Kafka",
+      "sublabel": "stock-movements · :9092",
+      "pos": [650, 110],
+      "size": [180, 72],
+      "sources": [
+        { "path": "backend/sales-services/src/main/java/com/cibertec/salesservices/kafka/KafkaTopicConfig.java", "line": 13, "label": "publica topic" },
+        { "path": "backend/products-services/src/main/java/com/cibertec/productsservices/kafka/StockUpdateConsumer.java", "line": 24, "label": "3 consumer groups" }
+      ]
+    },
+    {
+      "id": "rabbitmq",
+      "type": "messagebus",
+      "label": "RabbitMQ",
+      "sublabel": "stock-exchange · :5672",
+      "pos": [650, 235],
+      "size": [180, 72],
+      "sources": [
+        { "path": "backend/sales-services/src/main/java/com/cibertec/salesservices/rabbitmq/RabbitMQConfig.java", "line": 17, "label": "exchange" },
+        { "path": "backend/products-services/src/main/java/com/cibertec/productsservices/rabbitmq/RabbitMQConfig.java", "line": 18, "end_line": 21, "label": "colas y keys" }
+      ]
+    },
+    {
+      "id": "mysql",
+      "type": "database",
+      "label": "MySQL · appdb",
+      "sublabel": "localhost:5510",
+      "pos": [650, 360],
+      "size": [180, 72],
+      "sources": [
+        { "path": "database/docker-compose.yml", "label": "MySQL 5510" },
+        { "path": "backend/sales-services/src/main/resources/application.yml", "line": 5, "label": "jdbc appdb" }
+      ]
+    }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Infra Docker: database/ + queue/", "wraps": ["mysql", "kafka", "rabbitmq"] },
+    { "kind": "security-group", "label": "JWT: :8083 protegido · :8081/:8082 abiertos", "wraps": ["jwtsales"] }
+  ],
+  "connections": [
+    { "id": "postman-sales", "from": "postman", "to": "sales", "label": "CRUD /sales · REST", "labelDy": -14 },
+    { "id": "postman-products", "from": "postman", "to": "products", "label": "CRUD /products · REST", "labelDy": 14 },
+    { "id": "postman-jwt", "from": "postman", "to": "jwtsales", "label": "login + JWT · REST" },
+    { "id": "feign-sale-product", "from": "sales", "to": "products", "label": "Feign GET /products/{id}", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "orthogonal-v" },
+    { "id": "sales-kafka-pub", "from": "sales", "to": "kafka", "label": "publica stock-movements", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "sales-rabbit-pub", "from": "sales", "to": "rabbitmq", "label": "publica stock.reserve", "fromSide": "top", "toSide": "right", "route": "auto", "via": [[420, 50], [940, 50], [940, 271]] },
+    { "id": "sales-mysql", "from": "sales", "to": "mysql", "label": "JPA · appdb", "fromSide": "top", "toSide": "right", "route": "auto", "via": [[420, 20], [900, 20], [900, 396]] },
+    { "id": "products-kafka-sub", "from": "products", "to": "kafka", "label": "consume ×3 groups", "fromSide": "top", "toSide": "bottom" },
+    { "id": "products-rabbit", "from": "products", "to": "rabbitmq", "label": "reserve → stock.low", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "products-mysql", "from": "products", "to": "mysql", "label": "JPA · appdb" },
+    { "id": "jwt-mysql", "from": "jwtsales", "to": "mysql", "label": "JPA · appdb", "fromSide": "bottom", "toSide": "bottom", "route": "auto", "via": [[420, 480], [740, 480]], "labelAt": [580, 480] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Síncrono", "items": ["sales enriquece con products vía Feign (GET /sales/{id}/details)", "Solo :8083 exige JWT; :8081 y :8082 sin auth"] },
+    { "dot": "emerald", "title": "Asíncrono", "items": ["Kafka stock-movements: sales publica, products consume ×3 groups", "Rabbit stock-exchange: reserve → alerta stock.low"] },
+    { "dot": "rose", "title": "Cómo correr", "items": ["Infra: database/ + queue/ (MySQL 5510, Kafka 9092, Rabbit 5672)", "Orden: :8081 → :8082 → :8083 con ./gradlew bootRun"] }
+  ]
+}
