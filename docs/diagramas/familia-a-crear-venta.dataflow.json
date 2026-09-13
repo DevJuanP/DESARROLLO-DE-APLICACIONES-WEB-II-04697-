@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Familia A — crear venta: Feign, Kafka y Rabbit",
+    "quality_profile": "showcase",
+    "viewBox": [1060, 588],
+    "views": [
+      { "id": "ruta-kafka", "label": "Venta por Kafka", "focus": ["postman", "salessvc", "mysqldb", "kafkatopic", "c-update"], "note": "POST /sales guarda PENDING y publica StockMovementEvent; stock-update-cg descuenta." },
+      { "id": "ruta-rabbit", "label": "Venta por Rabbit", "focus": ["postman", "salessvc", "rabbitex", "c-reserve", "mysqldb"], "note": "POST /sales/rabbit-reserve publica con key stock.reserve; el consumidor descuenta y alerta." },
+      { "id": "consulta-feign", "label": "Consulta con Feign", "focus": ["postman", "salessvc", "productsapi"], "note": "GET /sales/{id}/details enriquece vía Feign contra products :8081." }
+    ]
+  },
+  "stages": [
+    { "label": "Origen" },
+    { "label": "Venta :8082" },
+    { "label": "Transporte" },
+    { "label": "Efectos :8081" }
+  ],
+  "nodes": [
+    { "id": "postman", "type": "external", "label": "Postman", "sublabel": "POST /sales", "stage": 0, "row": 1 },
+    { "id": "productsapi", "type": "backend", "label": "products :8081", "sublabel": "GET /products/{id}", "stage": 1, "row": 0 },
+    { "id": "salessvc", "type": "backend", "label": "SaleService :8082", "sublabel": "guarda PENDING", "tag": "fire-and-forget", "stage": 1, "row": 1 },
+    { "id": "mysqldb", "type": "database", "label": "MySQL appdb", "sublabel": "sales + products", "stage": 1, "row": 2 },
+    { "id": "kafkatopic", "type": "messagebus", "label": "stock-movements", "sublabel": "topic Kafka", "stage": 2, "row": 0 },
+    { "id": "rabbitex", "type": "messagebus", "label": "stock-exchange", "sublabel": "exchange RabbitMQ", "stage": 2, "row": 2 },
+    { "id": "c-update", "type": "backend", "label": "StockUpdate", "sublabel": "stock-update-cg", "stage": 3, "row": 0 },
+    { "id": "c-auditrep", "type": "backend", "label": "Audit + reportes", "sublabel": "audit-cg · reporting-cg", "stage": 3, "row": 1 },
+    { "id": "c-reserve", "type": "backend", "label": "StockReserve", "sublabel": "stock-reserve-queue", "stage": 3, "row": 2 }
+  ],
+  "flows": [
+    { "id": "post-sale", "from": "postman", "to": "salessvc", "label": "POST /sales", "classification": "venta PENDING", "variant": "emphasis" },
+    { "id": "save-pending", "from": "salessvc", "to": "mysqldb", "label": "guarda PENDING", "classification": "JPA", "labelDy": 24 },
+    { "id": "pub-movement", "from": "salessvc", "to": "kafkatopic", "label": "StockMovementEvent", "classification": "topic stock-movements", "variant": "emphasis" },
+    { "id": "pub-reserve", "from": "salessvc", "to": "rabbitex", "label": "StockReserveEvent", "classification": "key stock.reserve", "variant": "emphasis" },
+    { "id": "feign-product", "from": "salessvc", "to": "productsapi", "label": "Feign GET /products/{id}", "classification": "solo GET details", "variant": "dashed", "labelAt": [290, 222] },
+    { "id": "consume-update", "from": "kafkatopic", "to": "c-update", "label": "stock-update-cg", "classification": "offset propio", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "consume-auditrep", "from": "kafkatopic", "to": "c-auditrep", "label": "audit + reporting", "classification": "observabilidad", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "auto", "via": [[530, 214], [745, 214]] },
+    { "id": "update-write", "from": "c-update", "to": "mysqldb", "label": "decreaseStock", "classification": "descuenta JPA", "route": "auto", "fromSide": "right", "toSide": "bottom", "via": [[850, 157], [850, 470], [315, 470]], "labelAt": [770, 320] },
+    { "id": "reserve-queue", "from": "rabbitex", "to": "c-reserve", "label": "stock-reserve-queue", "classification": "cola RabbitMQ", "fromSide": "right", "toSide": "left", "route": "straight" },
+    { "id": "reserve-write", "from": "c-reserve", "to": "mysqldb", "label": "descuenta + alerta stock.low", "classification": "hacia stock-low-queue", "route": "auto", "fromSide": "right", "toSide": "bottom", "via": [[880, 385], [880, 500], [315, 500]], "labelAt": [960, 442] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Venta PENDING", "items": ["POST guarda PENDING y responde sin esperar colas (fire-and-forget)", "/sales publica a Kafka, /sales/rabbit-reserve publica a Rabbit (negocio/SaleService.java:74-99)"] },
+    { "dot": "emerald", "title": "Kafka ×3 groups", "items": ["Mismo evento, 3 groupIds con offset independiente", "stock-update-cg descuenta; audit-cg y reporting-cg solo observan"] },
+    { "dot": "rose", "title": "Rabbit reserva", "items": ["stock.reserve → StockReserveConsumer descuenta y emite stock.low", "stock-low-queue no tiene consumidor en código; decreaseStock es synchronized (409 si falta stock)"] }
+  ]
+}

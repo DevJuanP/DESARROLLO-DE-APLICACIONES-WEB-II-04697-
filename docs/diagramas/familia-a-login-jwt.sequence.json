@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Familia A — login JWT y acceso protegido (:8083)",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [1060, 580],
+    "views": [
+      { "id": "login", "label": "Login", "focus": ["postman", "authctrl", "authsvc", "mysqldb"], "note": "Credenciales válidas: BCrypt verifica y se emite el token firmado." },
+      { "id": "protegido", "label": "Recurso protegido", "focus": ["postman", "jwtfilter", "salesctrl", "mysqldb"], "note": "GET /sales con Bearer: el filtro valida y fija el SecurityContext." },
+      { "id": "sin-token", "label": "Sin token → 403", "focus": ["postman", "jwtfilter"], "note": "Sin Bearer el filtro continúa y Spring niega el acceso." }
+    ]
+  },
+  "participants": [
+    { "id": "postman", "type": "external", "label": "Postman / curl", "sublabel": "cliente HTTP" },
+    { "id": "authctrl", "type": "backend", "label": "AuthController", "sublabel": "POST /auth/login" },
+    { "id": "authsvc", "type": "backend", "label": "AuthService", "sublabel": "valida + emite" },
+    { "id": "jwtfilter", "type": "security", "label": "JwtAuthFilter", "sublabel": "Bearer → contexto" },
+    { "id": "salesctrl", "type": "backend", "label": "SaleController", "sublabel": "GET /sales" },
+    { "id": "mysqldb", "type": "database", "label": "MySQL · appdb", "sublabel": "AppUser + Sale" }
+  ],
+  "segments": [
+    { "from": 150, "to": 306, "label": "Login" },
+    { "from": 322, "to": 446, "label": "Recurso protegido" },
+    { "from": 462, "to": 502, "label": "Sin token → 403" }
+  ],
+  "messages": [
+    { "id": "login-req", "from": "postman", "to": "authctrl", "y": 160, "label": "POST /auth/login {user, pass}", "variant": "emphasis" },
+    { "id": "login-svc", "from": "authctrl", "to": "authsvc", "y": 188, "label": "login(request)", "variant": "default" },
+    { "id": "find-user", "from": "authsvc", "to": "mysqldb", "y": 216, "label": "findByUsername", "variant": "default" },
+    { "id": "user-row", "from": "mysqldb", "to": "authsvc", "y": 244, "label": "AppUser + hash", "variant": "return" },
+    { "id": "login-res", "from": "authsvc", "to": "authctrl", "y": 272, "label": "LoginResponse(token, Bearer)", "variant": "return", "note": "BCrypt verifica la clave y JwtService firma (subject, userId, role). Evidencia: negocio/AuthService.java:30-38, security/JwtService.java:32-37." },
+    { "id": "token-200", "from": "authctrl", "to": "postman", "y": 300, "label": "200 {token, Bearer}", "variant": "return" },
+    { "id": "sales-req", "from": "postman", "to": "jwtfilter", "y": 328, "label": "GET /sales · Bearer …", "variant": "emphasis" },
+    { "id": "filter-pass", "from": "jwtfilter", "to": "salesctrl", "y": 356, "label": "pasa (auth en contexto)", "variant": "security", "note": "Valida subject + expiración y fija el SecurityContext. Evidencia: security/JwtAuthenticationFilter.java:41-52." },
+    { "id": "sales-all", "from": "salesctrl", "to": "mysqldb", "y": 384, "label": "findAll sales", "variant": "default" },
+    { "id": "sales-rows", "from": "mysqldb", "to": "salesctrl", "y": 412, "label": "rows", "variant": "return" },
+    { "id": "sales-200", "from": "salesctrl", "to": "postman", "y": 440, "label": "200 [SaleResponse]", "variant": "return" },
+    { "id": "no-token-req", "from": "postman", "to": "jwtfilter", "y": 468, "label": "GET /sales sin Bearer", "variant": "default" },
+    { "id": "no-token-403", "from": "jwtfilter", "to": "postman", "y": 496, "label": "403 Forbidden", "variant": "return", "note": "Sin Bearer el filtro continúa la cadena y Spring niega (anyRequest.authenticated). Evidencia: security/JwtAuthenticationFilter.java:36-37, security/SecurityConfig.java:34." }
+  ],
+  "activations": [
+    { "participant": "authctrl", "from": 160, "to": 306, "type": "backend" },
+    { "participant": "authsvc", "from": 188, "to": 278, "type": "backend" },
+    { "participant": "mysqldb", "from": 216, "to": 250, "type": "database" },
+    { "participant": "jwtfilter", "from": 328, "to": 362, "type": "security" },
+    { "participant": "salesctrl", "from": 356, "to": 446, "type": "backend" },
+    { "participant": "mysqldb", "from": 384, "to": 418, "type": "database" },
+    { "participant": "jwtfilter", "from": 468, "to": 502, "type": "security" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Login", "items": ["POST /auth/login es público; BCrypt verifica la clave contra MySQL", "JwtService firma con subject + userId + role y expiración en minutos"] },
+    { "dot": "emerald", "title": "Protegido", "items": ["GET /sales exige Authorization: Bearer …", "Stateless + CSRF off; únicas rutas públicas: POST /users y POST /auth/login"] },
+    { "dot": "rose", "title": "Fallos", "items": ["Sin Bearer → 403 por anyRequest.authenticated", "Clave errónea → 401 Credenciales inválidas desde AuthService"] }
+  ]
+}

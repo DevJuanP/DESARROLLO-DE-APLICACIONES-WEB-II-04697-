@@ -1,242 +1,54 @@
 # DESARROLLO DE APLICACIONES WEB II — 04697
 
-Repositorio académico (monorepo) de la asignatura **Desarrollo de Aplicaciones Web II**.
-Contiene varias **familias independientes de microservicios Spring Boot + un frontend Angular** para practicar, de forma progresiva:
+Monorepo del curso **DAW II**. El profesor condensó aquí **todas las clases, demos y exámenes**: cada carpeta es una familia independiente que corresponde a un bloque de clases. **No se levanta todo junto: se trabaja una familia a la vez.**
 
-- CRUD REST + JPA + MySQL
-- Auth JWT + Spring Security
-- Comunicación síncrona (OpenFeign / RestTemplate + Eureka + Gateway)
-- Mensajería asíncrona (Kafka + RabbitMQ)
-- Resiliencia (Circuit Breaker + fallback) y despliegue en K8s
+Mapa detallado en `.planning/codebase/` (`ARCHITECTURE.md`, `STACK.md`, `STRUCTURE.md`, `INTEGRATIONS.md`).
 
-> **Importante:** las familias son **independientes y no se ejecutan todas a la vez**.
-> Hay colisiones de puertos entre familias (8081/8082/8083). Levanta **una familia a la vez**.
+## Familias ↔ clases
 
-Documentación de análisis base en `.planning/codebase/` (`ARCHITECTURE.md`, `STACK.md`, `STRUCTURE.md`, `INTEGRATIONS.md`, `CONVENTIONS.md`, `CONCERNS.md`, `TESTING.md`).
+| Familia | Carpeta | Bloque de clases | Qué enseña | Detalle |
+|---|---|---|---|---|
+| A | `backend/` | CRUD + JWT + mensajería base | REST/JPA/MySQL, auth JWT, Feign, Kafka + Rabbit | [ver README](backend/README.md) |
+| B | `spring_cloud/` | Spring Cloud | Eureka, Gateway, `RestTemplate @LoadBalanced` (sin DB) | [ver README](spring_cloud/README.md) |
+| C | `practica-examen/` | Práctica / examen | Pedidos ↔ notificaciones: doble Feign, cancelaciones Kafka, correos Rabbit | [ver README](practica-examen/README.md) |
+| D | `resiliencia-demo/` | Resiliencia + K8s | Feign + CircuitBreaker + fallback, Actuator, despliegue minikube/ArgoCD | [ver README](resiliencia-demo/README.md) |
+| Front | `frontend/hospital_web/` | Frontend (paralelo) | Plantilla Angular "Cliniva" con auth simulada, sin backend real | — |
 
----
+## Regla de oro: una familia a la vez
 
-## 1. Mapa general del repositorio
+Hay **colisiones de puertos**: 8081 y 8082 (A ↔ C), 8083 (A ↔ B), 8090 (Kafka-UI ↔ D). Apaga una familia antes de levantar otra.
 
-```
-├── backend/              # Familia A: productos + ventas + auth JWT (sin Eureka ni gateway)
-├── spring_cloud/         # Familia B: fintech con Eureka + Gateway (sin DB)
-├── practica-examen/      # Familia C: pedidos ↔ notificaciones (con colas, doble Feign)
-├── resiliencia-demo/     # Familia D: Feign + CircuitBreaker + K8s (sin colas ni Eureka)
-├── frontend/hospital_web/# Plantilla Angular 21 "Cliniva" (mock local, sin backend real)
-├── database/             # docker-compose MySQL:5510 + phpMyAdmin:3410
-├── queue/                # docker-compose Kafka:9092 (+UI:8090) y RabbitMQ:5672 (+mgmt:15672)
-└── postman/              # Collections raíz JWT + Flows + 2 environments
-```
+## Infra con Docker (solo A y C)
 
-### Familias
-
-| Familia | Carpeta | Idea en una línea | Discovery | Mensajería | BD |
-|---|---|---|---|---|---|
-| A | `backend/` | CRUD productos/ventas + auth JWT | No (Feign URL fija) | Kafka + Rabbit (products/sales) | MySQL `appdb` |
-| B | `spring_cloud/` | Fintech tarjetas prepago: cuentas + recargas + gateway | Sí (Eureka 8761 + Gateway 8762) | No | No (memoria) |
-| C | `practica-examen/` | Variante examen: pedidos + notificaciones + cancelaciones + correos | No (Feign URL/config) | Kafka 2 topics + Rabbit 2 exchanges | MySQL `appdb` |
-| D | `resiliencia-demo/` | Demo `sin-resiliencia` vs `con-resiliencia` (CircuitBreaker + fallback) | No | No | No |
-| Front | `frontend/hospital_web` | Template hospital Admin/Doctor/Patient, auth simulada | — | — | No |
-
----
-
-## 2. Arquitectura por familia
-
-### Familia A — `backend/*` (8081 / 8082 / 8083)
-
-- `products-services (:8081)`: CRUD `/products`, `decreaseStock` sincronizado. Consume Kafka `stock-movements` (3 consumer-groups) y Rabbit `stock-exchange`, emite alertas `stock.low`.
-- `sales-services (:8082)`: CRUD `/sales`, `GET /sales/{id}/details` (enriquece con producto vía Feign a `:8081`), `POST /sales/rabbit-reserve`. Publica `stock-movements` (Kafka) y `stock.reserve` (Rabbit).
-- `jwt-sales-services (:8083)`: `POST /users` + `POST /auth/login` públicos, resto autenticado con JWT (`JwtService` + `JwtAuthenticationFilter` + `SecurityConfig`). `GET /sales` protegido. Sin Kafka/Rabbit ni llamadas salientes.
-- **Docker:** sí necesita infra → `database/docker-compose.yml` (MySQL 5510) + `queue/docker-compose-kafka.yml` (9092) + `queue/docker-compose-rabbitmq.yml` (5672). Sin `Dockerfile` para estos micros: se corren con `./gradlew bootRun`.
-- **Postman:** `postman/Cibertec-JWT-Sales...` + env `Cibertec-JWT-Local` (auth `:8083`) y `postman/Cibertec-Microservices-Flows...` + env `Cibertec-Local` (flujos Kafka/Rabbit/Feign + CRUD `:8081/:8082`).
-- **Protocolos:** Postman todo **HTTP/REST**. Entre servicios: HTTP (controllers + Feign `sales→products`), Kafka **TCP binario** (`stock-movements`, `:9092`), Rabbit **AMQP sobre TCP** (`stock-exchange`, keys `stock.reserve`/`stock.low`, `:5672`; consola `:15672` sí es HTTP), MySQL **TCP** (`:5510→3306`). Nada UDP.
-
-### Familia B — `spring_cloud/*` (8761 / 8762 / 8300 / 8100 / 8083)
-
-```
-cliente/postman → api-gateway (:8762) → lb://ms-cuentas | lb://ms-recargas | lb://ms-notificaciones
-                                     ↘ eureka-server (:8761) (discovery)
-ms-recargas (:8100) → RestTemplate @LoadBalanced → http://ms-cuentas/cuentas/saldo/{id} (:8300)
-```
-
-Sin MySQL/Kafka/Rabbit. Datos hardcodeados (cuentas 001/002/003). `ms-notificaciones` aquí es solo un stub `GET /notificaciones/enviar/{tipo}`.
-- **Docker:** no necesita Docker. No hay compose ni `Dockerfile` útil (el `eureka-server/DockerFile` está obsoleto, `FROM java:8`). Todo con `./mvnw spring-boot:run`.
-- **Postman:** `spring_cloud/postman/sistema-fintech-tarjetas-prepago...` (dashboard Eureka, saldos/recargas directas y vía gateway).
-- **Protocolos:** todo **HTTP**. Cliente→gateway `:8762`, gateway→`lb://` (resuelto por Eureka `:8761`, también HTTP), `recargas→cuentas` vía `RestTemplate @LoadBalanced`. Sin Kafka/Rabbit/DB, nada UDP.
-
-### Familia C — `practica-examen/*` (8082 / 8081)
-
-- `ms-pedidos (:8082)`: CRUD `/sales` + doble Feign (`ProductClient` + `NotificationClient` → `:8081`), publica Kafka `stock-movements` y `sale-cancellation-requests`, y Rabbit `purchase-email-queue` (stock solo si `messaging.rabbitmq.stock.enabled=true`, por defecto `false`).
-- `ms-notificaciones (:8081)`: CRUD `/notificaciones...` + `/mensajes` + `/ventas/{saleId}/anulaciones/logs`. Consume cancelaciones Kafka, correos Rabbit y eventos stock.
-- **Docker:** misma infra que familia A → MySQL + Kafka + Rabbit (ver §6). **Apagar familia A antes** (colisionan 8081/8082). Sin `Dockerfile`: con `./gradlew bootRun`.
-- **Postman:** `practica-examen/ms-pedidos/postman/ms-pedidos...` (ventas + Feign + anulación Kafka + `rabbit-reserve`) y `practica-examen/ms-notificaciones/postman/ms-notificaciones...` (mensajes + logs de anulación).
-- **Protocolos:** Postman todo **HTTP/REST**. Entre servicios: HTTP (doble Feign), Kafka **TCP binario** (2 topics: `stock-movements`, `sale-cancellation-requests`, `:9092`), Rabbit **AMQP sobre TCP** (`purchase-email-queue`, `stock-*`, `:5672`), MySQL **TCP** (`:5510`). Nada UDP.
-
-### Familia D — `resiliencia-demo/*` (8090 / 8091)
-
-- `ms-pedidos (:8090)`: `POST /pedidos/sin-resiliencia` (Feign directo, 500 si falla) vs `POST /pedidos/con-resiliencia` (`@CircuitBreaker(name="inventario", fallbackMethod=...)` → `RECIBIDO_SIN_VALIDAR_STOCK`).
-- `ms-inventario (:8091)`: `GET /inventario/{productoId}` + simuladores `POST /inventario/demo/falla/{true|false}`, `POST /inventario/demo/demora/{millis}`, `GET /inventario/demo/estado`. Único con `Dockerfile` + `k8s/` + `deploy.sh` + Actuator.
-- **Docker:** en local no necesita Docker (sin DB ni colas). Los `Dockerfile` + `k8s/` + `deploy.sh` son solo para la demo K8s/minikube. **Apagar Kafka-UI antes** (colisiona en 8090).
-- **Postman:** `resiliencia-demo/postman/resiliencia-ms-pedidos-inventario...` (estado, v1 sin resiliencia con 500, v2 con fallback + apertura del CB, timeout con demora 2000, endpoints actuator).
-- **Protocolos:** todo **HTTP**. Feign `pedidos→inventario` + Actuator (`/actuator/circuitbreakers`, `/circuitbreakerevents`). Sin Eureka/Rabbit/Kafka/DB, nada UDP.
-
-### Frontend — `frontend/hospital_web` (Cliniva)
-
-Angular 21 + Material, lazy por rol (`admin/doctor/patient`), `AuthGuard` por `localStorage`, `apiUrl: http://localhost:4200` (loopback). **No consume ningún backend Java** (`LoginService` hace `GET /user` simulado).
-- **Docker:** no usa. Se corre con `npm install && npm start`.
-- **Postman:** no tiene colección (no hay backend real que probar).
-- **Protocolos:** solo **HTTP** mock local. Nada UDP.
-
----
-
-## 3. Stack
-
-- **Java 17** en todos los microservicios. **Spring Boot 3.2.5** dominante (excepción: `spring_cloud/ms-notificaciones` con Boot **4.0.6** + Cloud 2025.1.1).
-- **Build:** Gradle 8.7 (`backend/*`, `practica-examen/*`), Gradle 9.5.1 (`spring_cloud/ms-notificaciones`), Maven (`spring_cloud` resto + `resiliencia-demo`). Frontend: Angular CLI 21 / npm (sin lockfile).
-- **Persistencia:** MySQL 8.0 (Docker, `localhost:5510/appdb`, `ddl-auto: update`, sin Flyway/Liquibase). Solo familias A y C.
-- **Mensajería:** Kafka 7.4.0 (topics `stock-movements`, `sale-cancellation-requests`) + RabbitMQ 3-management (exchanges `stock-exchange`, `notification-exchange`; colas `stock-reserve-queue`, `stock-low-queue`, `purchase-email-queue`). Solo familias A y C.
-- **Discovery/Gateway:** solo familia B (Eureka + Spring Cloud Gateway + `RestTemplate @LoadBalanced`).
-- **Resiliencia:** solo familia D (Resilience4j + Actuator + timeouts Feign 1000ms).
-- **Frontend:** TypeScript ~5.9, Angular 21 + Material + Bootstrap 5 + FullCalendar/ApexCharts/ECharts, Karma+Jasmine para tests.
-
-Tabla completa módulo → stack en `.planning/codebase/STACK.md`.
-
----
-
-## 4. Puertos
-
-| Servicio | Puerto | Servicio | Puerto |
-|---|---|---|---|
-| `backend/products-services` | 8081 | `practica ms-notificaciones` | 8081 ⚠️ colisiona |
-| `backend/sales-services` | 8082 | `practica ms-pedidos` | 8082 ⚠️ colisiona |
-| `backend/jwt-sales-services` | 8083 | `spring_cloud/ms-notificaciones` | 8083 ⚠️ colisiona |
-| `spring_cloud/eureka-server` | 8761 | `spring_cloud/api-gateway` | 8762 |
-| `spring_cloud/ms-cuentas` | 8300 | `spring_cloud/ms-recargas` | 8100 |
-| `resiliencia ms-pedidos` | 8090 | `resiliencia ms-inventario` | 8091 |
-| MySQL / phpMyAdmin | 5510→3306 / 3410→80 | Kafka / Kafka-UI / ZK | 9092 / 8090 ⚠️ / 2181 |
-| RabbitMQ / mgmt | 5672 / 15672 | Frontend dev | 4200 |
-
-No levantar `backend/*` y `practica-examen/*` a la vez, ni `jwt-sales` con `spring_cloud/ms-notificaciones`, ni `kafka-ui` con `resiliencia ms-pedidos` sin remapear.
-
----
-
-## 5. Requisitos
-
-- JDK 17, Docker + Docker Compose, Node 24 + npm, `curl` / Postman.
-- Maven solo necesario para `spring_cloud/*` y `resiliencia-demo/*` (4 módulos traen `mvnw`, resiliencia usa `maven:3.9` en Docker).
-- Cada servicio Gradle trae su `gradlew`.
-
----
-
-## 6. Cómo levantar cada familia
-
-### Infra común (familias A y C)
+Docker solo levanta la infraestructura. Los micros se corren con `bootRun`:
 
 ```bash
-cd database && docker compose up -d        # MySQL 5510 + phpMyAdmin 3410
-cd ../queue && docker compose -f docker-compose-kafka.yml up -d
-cd ../queue && docker compose -f docker-compose-rabbitmq.yml up -d
+cd database && docker compose up -d                                  # MySQL 5510 + phpMyAdmin 3410
+cd ../queue && docker compose -f docker-compose-kafka.yml up -d      # Kafka 9092 + UI 8090
+cd ../queue && docker compose -f docker-compose-rabbitmq.yml up -d   # Rabbit 5672 + consola 15672
 ```
 
-### Familia A — backend
+B y D no necesitan Docker en local. D trae `Dockerfile` + `k8s/` solo para la demo de despliegue.
 
-```bash
-cd backend/products-services && ./gradlew bootRun   # :8081 primero
-cd ../sales-services && ./gradlew bootRun           # :8082
-cd ../jwt-sales-services && ./gradlew bootRun       # :8083
-```
+## Puertos
 
-Probar: `GET http://localhost:8081/products`, `GET http://localhost:8082/sales`, `POST http://localhost:8083/auth/login`.
+| 8081 | 8082 | 8083 | 8761/8762 | 8300/8100 | 8090/8091 | 5510 | 9092/5672 |
+|---|---|---|---|---|---|---|---|
+| products / notif. | sales / pedidos | jwt / notif. stub | Eureka / Gateway | cuentas / recargas | pedidos / inventario | MySQL | Kafka / Rabbit |
 
-### Familia B — spring_cloud
+## Postman (una colección por familia)
 
-```bash
-cd spring_cloud/eureka-server && ./mvnw spring-boot:run  # :8761
-cd ../ms-cuentas && ./mvnw spring-boot:run               # :8300
-cd ../ms-recargas && ./mvnw spring-boot:run              # :8100
-cd ../api-gateway && ./mvnw spring-boot:run              # :8762
-```
-
-Probar: `curl http://localhost:8761`, `curl http://localhost:8300/cuentas/saldo/001`, `curl http://localhost:8762/recargas/procesar/001/50`.
-
-### Familia C — practica-examen
-
-```bash
-cd practica-examen/ms-notificaciones && ./gradlew bootRun  # :8081
-cd ../ms-pedidos && ./gradlew bootRun                      # :8082
-```
-
-### Familia D — resiliencia-demo
-
-```bash
-cd resiliencia-demo/ms-inventario && mvn spring-boot:run  # :8091
-cd ../ms-pedidos && mvn spring-boot:run                   # :8090
-# K8s alternativo: ver resiliencia-demo/deploy.sh (modos local / gitops con ArgoCD)
-```
-
-Demo: `POST :8091/inventario/demo/falla/true` → `POST :8090/pedidos/sin-resiliencia` (500) vs `POST :8090/pedidos/con-resiliencia` (fallback). Estado CB: `GET :8090/actuator/circuitbreakers`.
-
-### Frontend
-
-```bash
-cd frontend/hospital_web && npm install && npm start  # http://localhost:4200
-```
-
----
-
-## 7. Postman
-
-| Colección | Cubre |
+| Familia | Colección |
 |---|---|
-| `postman/Cibertec-JWT-Sales...` + env `Cibertec-JWT-Local` | login JWT, `GET /sales` con/sin token, CRUD usuarios (:8083) |
-| `postman/Cibertec-Microservices-Flows...` + env `Cibertec-Local` | flujos Kafka/Rabbit/Feign + CRUD productos (:8081/:8082) |
-| `spring_cloud/postman/sistema-fintech...` | Eureka + saldos/recargas directas y vía gateway |
-| `practica-examen/*/postman/` | ventas + Feign + anulación Kafka + logs |
-| `resiliencia-demo/postman/resiliencia-...` | sin/con resiliencia + falla/demora + actuator CB |
+| A | `postman/Cibertec-JWT-Sales...` + `Cibertec-Microservices-Flows...` (+ 2 envs) |
+| B | `spring_cloud/postman/sistema-fintech-...` |
+| C | `practica-examen/ms-pedidos/postman/` + `ms-notificaciones/postman/` |
+| D | `resiliencia-demo/postman/resiliencia-...` |
 
----
+## Protocolos
 
-## 8. Convenciones de código
+Postman siempre es **HTTP/REST**. Entre servicios todo es **TCP**: HTTP (Feign/RestTemplate/gateway), Kafka binario (`:9092`), Rabbit AMQP (`:5672`), MySQL (`:5510`). **Nada UDP.**
 
-- Capas ES: `rest/` (controller fino) → `negocio/` (reglas, lanza `ResponseStatusException`) → `repositorio/` (JpaRepository) → `entidades/` (JPA) + `dto/` (`record` `Request`/`Response`). Excepción: `spring_cloud/*` (1 controller, sin capas) y `resiliencia-demo` (`rest/service/client/dto`, sin JPA).
-- Endpoints en plural sin versionado (`/sales`, `/products`, `/users`, `/pedidos`, `/inventario`). Sin `@ControllerAdvice` global.
-- Mensajería tipada (`*Event`/`*Producer`/`*Consumer`/`*Config`), seeders `*DataInitializer`, DTOs nunca exponen entidades.
-- Frontend: standalone components kebab-case, lazy por rol, guards `auth.guard`, aliases `@core/@shared`.
-- Commits: 1 solo commit inicial (`feat add initial commit`).
+## Requisitos
 
-Detalle en `.planning/codebase/CONVENTIONS.md` y `STRUCTURE.md` (incluye tabla “quiero X → voy a Y”).
-
----
-
-## 9. Tests
-
-- Backend: JUnit 5 + `spring-boot-starter-test`. 9/12 módulos solo tienen `contextLoads()`; sin tests `jwt-sales-services` ni `resiliencia-demo/*`. 0 tests de negocio/mocks/Testcontainers.
-- Frontend: 83 `*.spec.ts` estilo `should create` (Karma+Jasmine, necesita Chrome).
-
-```bash
-cd backend/sales-services && ./gradlew test
-cd spring_cloud/ms-cuentas && mvn test
-cd frontend/hospital_web && npx ng test --watch=false --browsers=ChromeHeadless
-```
-
-Recomendación mínima y gaps en `.planning/codebase/TESTING.md`.
-
----
-
-## 10. Advertencias conocidas
-
-- **Puertos en colisión** (ver §4) y **misma DB `appdb` para 5 servicios** con `ddl-auto: update` (riesgo de DDL cruzado).
-- **Secretos demo commiteados** (`database/.env`, `app.jwt.secret`, user/pass en `application.yml`) — solo uso local.
-- **Feign roto en practica-examen:** `ProductClient` pide `GET :8081/products/{id}` a un servicio que no expone `/products`; mensajería stock desactivada por defecto (`messaging.rabbitmq.stock.enabled: false`).
-- **Sin resiliencia fuera de `resiliencia-demo`** (Feign sin timeouts/fallback), gateway con `-` huérfano en YAML, `ms-notificaciones` Boot 4 vs resto Boot 3, frontend desconectado + auth solo-cliente.
-- **Deuda git:** 355 artefactos `bin/build/target/*.class/*.jar` + 15 `.DS_Store` commiteados pese a `.gitignore`.
-
-Auditoría completa en `.planning/codebase/CONCERNS.md` e `INTEGRATIONS.md` (brechas).
-
----
-
-## 11. Dónde seguir
-
-- READMEs por módulo: `backend/*/README.md`, `spring_cloud/README.md`, `practica-examen/*/README.md`, `resiliencia-demo/README.md`.
-- Mapa detallado: `.planning/codebase/ARCHITECTURE.md` (diagramas ASCII + flujos auth/ventas/pedidos/recargas).
+JDK 17 · Docker + Compose · Node 24 + npm · Postman. Cada servicio Gradle trae su `gradlew`; 4 módulos traen `mvnw`.
