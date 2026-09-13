@@ -49,6 +49,20 @@ B y D no necesitan Docker en local. D trae `Dockerfile` + `k8s/` solo para la de
 
 Postman siempre es **HTTP/REST**. Entre servicios todo es **TCP**: HTTP (Feign/RestTemplate/gateway), Kafka binario (`:9092`), Rabbit AMQP (`:5672`), MySQL (`:5510`). **Nada UDP.**
 
+## Diagramas (familia A)
+
+En `docs/diagramas/`. Los PNG dark en alta resolución se ven directo aquí; los HTML son interactivos (descargar y abrir en el navegador, GitHub no los previsualiza).
+
+| Diagrama | PNG (ver aquí) | Interactivo |
+|---|---|---|
+| Arquitectura familia A | [ver PNG](docs/diagramas/familia-a-arquitectura.visual-check.2048x1320.dark.png) | [abrir HTML](docs/diagramas/familia-a-arquitectura.html) |
+| Login JWT | [ver PNG](docs/diagramas/familia-a-login-jwt.visual-check.2048x1320.dark.png) | [abrir HTML](docs/diagramas/familia-a-login-jwt.html) |
+| Crear venta | [ver PNG](docs/diagramas/familia-a-crear-venta.visual-check.2048x1320.dark.png) | [abrir HTML](docs/diagramas/familia-a-crear-venta.html) |
+
+![Arquitectura familia A](docs/diagramas/familia-a-arquitectura.visual-check.2048x1320.dark.png)
+![Login JWT familia A](docs/diagramas/familia-a-login-jwt.visual-check.2048x1320.dark.png)
+![Crear venta familia A](docs/diagramas/familia-a-crear-venta.visual-check.2048x1320.dark.png)
+
 ## Requisitos
 
 JDK 17 · Docker + Compose · Node 24 + npm · Postman. Cada servicio Gradle trae su `gradlew`; 4 módulos traen `mvnw`.
