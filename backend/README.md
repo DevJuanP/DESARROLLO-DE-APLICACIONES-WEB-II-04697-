@@ -43,6 +43,8 @@ cd ../jwt-sales-services && ./gradlew bootRun       # :8083
 - `postman/Cibertec-JWT-Sales.postman_collection.json` + env `Cibertec-JWT-Local` → `POST /users`, `POST /auth/login`, `GET /sales` con/sin token (`:8083`).
 - `postman/Cibertec-Microservices-Flows.postman_collection.json` + env `Cibertec-Local` → health, `POST /sales` (Kafka), `POST /sales/rabbit-reserve` (Rabbit), `GET /sales/{id}/details` (Feign), CRUD productos.
 
+> Paso a paso para probar los flujos Kafka y Rabbit (ver mensajes en Kafka-UI y en la consola de Rabbit): [flujos-kafka-rabbit.md](flujos-kafka-rabbit.md).
+
 ## Protocolos
 
 Postman todo **HTTP/REST**. Entre servicios: HTTP (controllers + Feign `sales → http://localhost:8081`), Kafka **TCP binario** (topic `stock-movements`, 3 consumer-groups, `:9092`), Rabbit **AMQP/TCP** (exchange `stock-exchange`, colas `stock-reserve-queue`/`stock-low-queue`, keys `stock.reserve`/`stock.low`, `:5672`), MySQL **TCP** (`localhost:5510/appdb`). Nada UDP.
