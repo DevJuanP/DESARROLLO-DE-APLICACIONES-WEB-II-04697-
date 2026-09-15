@@ -20,7 +20,10 @@ Hay **colisiones de puertos**: 8081 y 8082 (A ↔ C), 8083 (A ↔ B), 8090 (Kafk
 
 ## Infra con Docker (solo A y C)
 
-Docker solo levanta la infraestructura. Los micros se corren con `bootRun`:
+Docker solo levanta la infraestructura. Los micros se corren con `bootRun`.
+
+> Para familias A y C sigue el paso a paso: [docs/docker-paso-a-paso.md](docs/docker-paso-a-paso.md) (MySQL + Kafka + Rabbit hasta dejarlos corriendo).
+> Guía genérica de Docker para repasar conceptos: [docs/docker-guia-generica.md](docs/docker-guia-generica.md).
 
 ```bash
 cd database && docker compose up -d                                  # MySQL 5510 + phpMyAdmin 3410
@@ -66,3 +69,5 @@ En `docs/diagramas/`. Los PNG dark en alta resolución se ven directo aquí; los
 ## Requisitos
 
 JDK 17 · Docker + Compose · Node 24 + npm · Postman. Cada servicio Gradle trae su `gradlew`; 4 módulos traen `mvnw`.
+
+> Java: se aconseja descargar el JDK 17 desde [adoptium.net → Temurin 17 LTS → Windows x64 (.msi)](https://adoptium.net/temurin/releases/?version=17). El repo usa Java 17 (Boot 3.2.5 / Gradle 8.7), no funciona con 21/25. En IntelliJ configura Project SDK 17 y Gradle JVM 17.
