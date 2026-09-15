@@ -172,6 +172,29 @@ docker volume ls       # volúmenes con datos persistidos (my-db, kafka_data, ra
 
 `down` apaga y borra contenedores/red, pero **no borra los volúmenes**, tus datos de MySQL/Kafka/Rabbit se conservan. Para borrar todo incluido datos: `docker compose down -v` (cuidado, borra la base).
 
+## 10b. Antes de apagar o reiniciar tu PC
+
+No es obligatorio, pero recomendado para partir limpio la próxima vez:
+
+1. Detén los micros en IntelliJ (botón stop en `:8081` y `:8082`).
+2. Apaga la infra:
+
+```powershell
+# en queue/
+docker compose -f docker-compose-kafka.yml down
+docker compose -f docker-compose-rabbitmq.yml down
+# en database/
+docker compose down
+```
+
+3. Cierra Docker Desktop y apaga normal.
+
+Si no lo haces, no se rompe nada: Windows cierra los contenedores al apagar. Pero hay un detalle:
+tu MySQL tiene `restart: always`, así que al prender la PC se levantará solo. Kafka y Rabbit no
+(no tienen esa política), esos los levantas manual cuando los necesites.
+
+En resumen: apaga con `down` para partir limpio la próxima vez y no toparte con puertos ocupados.
+
 ## 11. Fallas típicas
 
 | Síntoma | Causa probable | Qué hacer |
