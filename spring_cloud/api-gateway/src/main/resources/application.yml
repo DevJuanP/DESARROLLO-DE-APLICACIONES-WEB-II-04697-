@@ -18,7 +18,7 @@ spring:
         - id: ms-notificaciones
           uri: lb://ms-notificaciones
           predicates:
-            - Path=/notificaciones/**            -
+            - Path=/notificaciones/**
 
 eureka:
   client:
