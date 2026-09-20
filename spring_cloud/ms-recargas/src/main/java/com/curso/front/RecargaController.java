@@ -1,5 +1,6 @@
 package com.curso.front;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +18,7 @@ public class RecargaController {
     }
 
     @GetMapping("/recargas/procesar/{cuentaId}/{monto}")
+    @CircuitBreaker(name = "ms-cuentas", fallbackMethod = "fallbackRecarga")
     @SuppressWarnings("unchecked")
     public Map<String, Object> procesarRecarga(@PathVariable String cuentaId, @PathVariable double monto) {
         Map<String, Object> respuestaCuenta = restTemplate.getForObject(
@@ -35,6 +37,16 @@ public class RecargaController {
                 "recarga_aprobada", aprobada,
                 "motivo", aprobada ? "Saldo suficiente" : "Saldo insuficiente",
                 "atendido_por", respuestaCuenta.get("instancia")
+        );
+    }
+
+    @SuppressWarnings("unused")
+    public Map<String, Object> fallbackRecarga(String cuentaId, double monto, Exception e) {
+        return Map.of(
+                "cuenta", cuentaId,
+                "monto_solicitado", monto,
+                "recarga_aprobada", false,
+                "motivo", "Servicio no disponible, intente mas tarde"
         );
     }
 }
